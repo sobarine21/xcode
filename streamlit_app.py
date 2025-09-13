@@ -1,6 +1,5 @@
 import os
 import zipfile
-import base64
 from io import BytesIO
 import streamlit as st
 from google import genai
@@ -9,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Gemini API Code Generation
+# Gemini API Code Generation with proper safety checks
 def generate_full_app_code(prompt, language):
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     model = "gemini-2.5-flash"
@@ -31,10 +30,11 @@ def generate_full_app_code(prompt, language):
         contents=contents,
         config=generate_content_config,
     ):
-        full_code += chunk.text
+        if chunk.text:
+            full_code += chunk.text
     return full_code
 
-# ZIP generated code for download
+# ZIP the generated code into a downloadable package
 def create_zip_from_code(code_text):
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
@@ -51,42 +51,65 @@ CMD ["python", "main.py"]
     zip_buffer.seek(0)
     return zip_buffer
 
-# Handle file upload and extraction
+# Extract uploaded ZIP file safely
 def handle_zip_upload(uploaded_file):
-    with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
-        zip_ref.extractall("uploaded_files")
-    return "uploaded_files"
+    upload_dir = "uploaded_files"
+    os.makedirs(upload_dir, exist_ok=True)
 
-# Streamlit chatbot UI
+    with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
+        zip_ref.extractall(upload_dir)
+    
+    return upload_dir
+
+# Streamlit chatbot interface
 def main():
+    st.set_page_config(page_title="Gemini App Generator", layout="wide")
+
     st.title("🚀 Gemini-Powered End-to-End Application Generator Chatbot")
 
-    language = st.selectbox("Select Language", ["Python", "typeScript", "Java", "C++", "Ruby"])
-    user_prompt = st.text_area("Describe your full application requirement in detail:", height=200)
+    language = st.selectbox(
+        "Select Target Programming Language",
+        ["Python", "TypeScript", "Java", "C++", "Ruby"]
+    )
 
-    if st.button("Generate Full App Code"):
+    user_prompt = st.text_area(
+        "Describe your full application requirement in detail (be as specific as possible):",
+        height=200
+    )
+
+    if st.button("💡 Generate Full App Code"):
         if not user_prompt.strip():
-            st.error("Please provide a description of your application.")
+            st.error("⚠️ Please provide a description of your application.")
             return
 
-        with st.spinner("Generating full production-ready code... This may take a while..."):
-            generated_code = generate_full_app_code(user_prompt, language)
-            st.code(generated_code, language="python")
+        with st.spinner("⏳ Generating full production-ready code (this may take a few minutes)..."):
+            try:
+                generated_code = generate_full_app_code(user_prompt, language)
+                
+                st.subheader("✅ Generated Application Code Preview:")
+                st.code(generated_code, language="python")
 
-            zip_file = create_zip_from_code(generated_code)
+                zip_file = create_zip_from_code(generated_code)
 
-            st.download_button(
-                label="📥 Download Complete Application as ZIP",
-                data=zip_file,
-                file_name="generated_app.zip",
-                mime="application/zip"
-            )
-            st.success("Full application generated successfully.")
+                st.download_button(
+                    label="📥 Download Complete Application as ZIP",
+                    data=zip_file,
+                    file_name="generated_app.zip",
+                    mime="application/zip"
+                )
+                st.success("🎉 Application generated successfully!")
+            except Exception as e:
+                st.error(f"⚠️ An error occurred during generation: {str(e)}")
 
-    uploaded_file = st.file_uploader("Or upload existing project ZIP", type="zip")
+    st.markdown("---")
+
+    uploaded_file = st.file_uploader("📂 Upload existing project ZIP (Optional)", type="zip")
     if uploaded_file:
-        extracted_path = handle_zip_upload(uploaded_file)
-        st.success(f"Uploaded and extracted files to {extracted_path}")
+        try:
+            extracted_path = handle_zip_upload(uploaded_file)
+            st.success(f"✅ Uploaded and extracted files available at: `{extracted_path}`")
+        except Exception as e:
+            st.error(f"⚠️ Failed to extract ZIP: {str(e)}")
 
 if __name__ == "__main__":
     main()
