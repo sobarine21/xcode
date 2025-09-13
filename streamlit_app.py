@@ -61,7 +61,7 @@ def handle_zip_upload(uploaded_file):
 def main():
     st.title("🚀 Gemini-Powered End-to-End Application Generator Chatbot")
 
-    language = st.selectbox("Select Language", ["Python", "JavaScript", "Java", "C++", "Ruby"])
+    language = st.selectbox("Select Language", ["Python", "typeScript", "Java", "C++", "Ruby"])
     user_prompt = st.text_area("Describe your full application requirement in detail:", height=200)
 
     if st.button("Generate Full App Code"):
